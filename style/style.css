@@ -1,0 +1,23 @@
+body {
+    font-size: 20px;
+    font-weight: 400;
+    background: #060606;
+    color: #c4d8e2;
+}
+#gameCanvas {
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+#gameContainer {
+    margin: 0px auto;
+    margin-top: 10px;
+}
+.instructions {
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #587fcc;
+}
