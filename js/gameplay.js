@@ -11,6 +11,7 @@ var score = 0;
 var lines = 0;
 var linesToNext = 10;
 var difficulty = 0;
+var canRotate = true;
 var ocupiedBlocks = new Array(200);
 var timerID;
 var currentBlock = new nBlock();
@@ -35,6 +36,7 @@ function createCanvas() {
 function startGame() {
     currentBlock.blockType = 0;
     currentBlock.position = 0;
+    currentBlock.finished = true;
     drawInstructions();
     drawBoard();
     drawScore();
@@ -66,21 +68,45 @@ function drawInstructions() {
 
 function drawBoard() {
     for (i = 0; i < 200; i++) {
-        var x = i % 10 * blockSize + .75 * height;
-        var y = Math.floor(i / 10) * blockSize;
-        if (blockSize[i]) {
-            ctx.fillStyle = "#587fcc";
-            ctx.strokeStyle = "#c4d8e2";
-            ctx.lineWidth = 2;
-            roundRect(ctx, x, y, blockSize, blockSize, height / 150, true, true);
-        } else {
-            ctx.fillStyle = "#606060";
-            ctx.fillRect(x, y, blockSize, blockSize);
+        var hasNoBlock = true;
+        for (j = 0; j < currentBlock.position.length; j++) {
+            if (currentBlock.position[j] === i) {
+                hasNoBlock = false;
+            }
+        }
+        if (hasNoBlock) {
+            var x = i % 10 * blockSize + .75 * height;
+            var y = Math.floor(i / 10) * blockSize;
+            if (ocupiedBlocks[i]) {
+                ctx.fillStyle = "#587fcc";
+                ctx.strokeStyle = "#c4d8e2";
+                ctx.lineWidth = 2;
+                roundRect(ctx, x, y, blockSize, blockSize, height / 150, true, true);
+            } else {
+                ctx.fillStyle = "#060606";
+                ctx.fillRect(x, y, blockSize, blockSize);
+            }
         }
     }
     ctx.strokeStyle = "#c4d8e2";
     ctx.strokeRect(.75 * height, 0, height / 2, height - 1);
-    ctx.stroke();
+};
+
+
+function drawCurrentBlock() {
+    if (currentBlock.position != 0) {
+        for (i = 0; i < currentBlock.position.length; i++) {
+            if (currentBlock.position[i] >= 0) {
+                j = currentBlock.position[i];
+                var x = j % 10 * blockSize + .75 * height;
+                var y = Math.floor(j / 10) * blockSize;
+                ctx.fillStyle = "#ff0000";
+                ctx.strokeStyle = "#ff6666";
+                ctx.lineWidth = 2;
+                roundRect(ctx, x, y, blockSize, blockSize, height / 150, true, false);
+            }
+        }
+    }
 };
 
 function drawScore() {
@@ -131,10 +157,6 @@ function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
     }
 };
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////7
 function check(e) {
     if (e.keyCode === 13) {
         if (notStarted) {
@@ -148,44 +170,97 @@ function check(e) {
         }
         onPause = !onPause;
     }
-    if (onPause) {
+    if (!onPause) {        
         switch (e.keyCode) {
             case 32: // Fast drop
-
+                moveDown();
                 break;
-            case 37: // Move left
-
+            case 37: // Move left                
+                moveLeft();                
                 break;
             case 38: // Rotate Left
-
+                for (i = 0; i < currentBlock.position.length; i++) {
+                        if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
+                            canRotate = false;
+                        }
+                    }
+                if (canRotate) {
+                   rotateLeft();
+                    }                                   
                 break;
             case 39: // Move right
-
+                moveRight();
                 break;
-            case 40: // Rotate down
-
+            case 40: // Rotate right            
+                for (i = 0; i < currentBlock.position.length; i++) {
+                        if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
+                            canRotate = false;
+                        }
+                    }
+                if (canRotate) { 
+                    rotateRight();
+                    }
                 break;
         }
     }
 };
 
 function moveDown() {
-    if (currentBlock.finished) {
-        alert(currentBlock.position);
-        if (currentBlock.position != 0) {
+    if (currentBlock.finished) {        
+        if (currentBlock.position !== 0) {
             for (i = 0; i < currentBlock.position.length; i++) {
-                ocupiedBlocks[i] = true;
+                ocupiedBlocks[currentBlock.position[i]] = true;
             }
         }
+        checkLine();
         var nextBlock = Math.floor((Math.random() * 7) + 1);
         currentBlock.blockType = nextBlock;
+        //currentBlock.blockType = 5;
+        currentBlock.finished = false;
+        currentBlock.state = 0;
         currentBlock.newBlock();
     } else {
         currentBlock.down();
+        drawCurrentBlock();
     }
     drawBoard();
 };
 
+
+function moveLeft() {
+    var movePossible = true;
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (currentBlock.position[i] % 10 === 0) {
+            movePossible = false;
+        }
+        if (ocupiedBlocks[currentBlock.position[i] - 1] === true) {
+            movePossible = false;
+        }
+    }
+    if (movePossible) {
+        for (i = 0; i < currentBlock.position.length; i++) {
+            currentBlock.position[i] = currentBlock.position[i] - 1;
+        }
+    }
+};
+
+
+function moveRight() {
+    var movePossible = true;
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (currentBlock.position[i] % 10 === 9) {
+            movePossible = false;
+        }
+        if (ocupiedBlocks[currentBlock.position[i] + 1] === true) {
+            movePossible = false;
+        }
+    }
+    if (movePossible) {
+        for (i = 0; i < currentBlock.position.length; i++) {
+            currentBlock.position[i] += 1;
+        }
+    }
+};
 
 function checkColission(position) {
     var collide = false;
@@ -199,13 +274,8 @@ function checkColission(position) {
     return collide;
 };
 
-////////////////////////////////////////////////////////////////////////////77
+
 function nBlock() {
-
-    this.rotateLeft = function() {};
-
-    this.rotateRight = function() {};
-
 
     this.down = function() {
         var collide = checkColission(this.position);
@@ -220,7 +290,8 @@ function nBlock() {
 
     this.newBlock = function() {
         this.finished = false;
-
+        this.state = 0;
+        canRotate = true;
         switch (this.blockType) {
             case 0: // l block            
                 this.position = 0;
@@ -248,4 +319,456 @@ function nBlock() {
                 break;
         };
     };
+};
+
+rotateLeft = function() {
+    switch (currentBlock.blockType) {
+        case 1: // l block
+            //currentBlock.position = [-10, -9, -8, -7];
+            rotateRight();
+            break;
+        case 2: // Z block 
+            //currentBlock.position = [-9, -8, -20, -19];
+            rotateRight();
+            break;
+        case 3: // S block
+            // currentBlock.position = [-10, -9, -19, -18];
+            rotateRight();
+            break;
+        case 4: // T block
+            // currentBlock.position = [-10, -9, -8, -19];            
+            temp1 = currentBlock.position[1];
+            temp2 = currentBlock.position[3];
+            temp3 = currentBlock.position[0];
+            switch (currentBlock.state) {
+                case 0:                
+                    temp0 = currentBlock.position[1] + 10;
+                    temp4 = 3;
+                break;
+                case 1:
+                    temp0 = currentBlock.position[1] - 1;
+                    temp4 = 0;
+                break;
+                case 2:
+                    temp0 = currentBlock.position[1] - 10;
+                    temp4 = 1;
+                break;
+                case 3:
+                    temp0 = currentBlock.position[1] + 1;
+                    temp4 = 2;
+                break;
+            }                        
+
+            var notColides = colisionTBlock([temp0, temp1, temp2, temp3], temp4);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+
+            break;
+        case 5: // Square block
+            // currentBlock.position = [-10, -9, -20, -19];
+            // Do Notinhg
+            break;
+        case 6: // Left L block
+            // currentBlock.position = [-10, -9, -8, -20];
+            temp1 = currentBlock.position[1];
+            switch (currentBlock.state) {                
+                case 0:
+                    temp0 = currentBlock.position[1] + 10;
+                    temp2 = currentBlock.position[1] - 10;
+                    temp3 = currentBlock.position[0] + 10;
+                    temp4 = 3;
+                break;
+                case 1:                
+                    temp0 = currentBlock.position[1] - 1;
+                    temp2 = currentBlock.position[1] + 1;
+                    temp3 = currentBlock.position[0] - 1;
+                    temp4 = 0;
+                break;
+                case 2:
+                    temp0 = currentBlock.position[1] - 10;
+                    temp2 = currentBlock.position[1] + 10;
+                    temp3 = currentBlock.position[0] - 10;
+                    temp4 = 1;
+                break;
+                case 3:
+                    temp0 = currentBlock.position[1] + 1;
+                    temp2 = currentBlock.position[1] - 1;
+                    temp3 = currentBlock.position[0] + 1;
+                    temp4 = 2;
+                break;
+            }
+
+            var notColides = colisionLLBlock([temp0, temp1, temp2, temp3], temp4);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+            break;
+        case 7: // Right L block            
+            // currentBlock.position = [-10, -9, -8, -18];
+            temp1 = currentBlock.position[1];
+            switch (currentBlock.state) {                
+                case 0:
+                    temp0 = currentBlock.position[1] + 10;
+                    temp2 = currentBlock.position[1] - 10;
+                    temp3 = currentBlock.position[0] - 10;
+                    temp4 = 3;
+                break;
+                case 1:                
+                    temp0 = currentBlock.position[1] - 1;
+                    temp2 = currentBlock.position[1] + 1;
+                    temp3 = currentBlock.position[0] + 1;
+                    temp4 = 0;
+                break;
+                case 2:
+                    temp0 = currentBlock.position[1] - 10;
+                    temp2 = currentBlock.position[1] + 10;
+                    temp3 = currentBlock.position[0] + 10;
+                    temp4 = 1;
+                break;
+                case 3:
+                    temp0 = currentBlock.position[1] + 1;
+                    temp2 = currentBlock.position[1] - 1;
+                    temp3 = currentBlock.position[0] - 1;
+                    temp4 = 2;
+                break;
+            }
+
+            var notColides = colisionRLBlock([temp0, temp1, temp2, temp3], temp4);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+            break;
+    }
+};
+
+rotateRight = function() {
+    switch (currentBlock.blockType) {
+        case 1: // l block
+            //currentBlock.position = [-10, -9, -8, -7];            
+            if (currentBlock.state === 0) {
+                temp0 = currentBlock.position[2] - 20;
+                temp1 = currentBlock.position[2] - 10;
+                temp2 = currentBlock.position[2] + 10;
+                temp3 = 1;
+            } else {
+                temp0 = currentBlock.position[2] - 2;
+                temp1 = currentBlock.position[2] - 1;
+                temp2 = currentBlock.position[2] + 1;
+                temp3 = 0;
+            }
+            var notColides = colisionBlock([temp0, temp1, currentBlock.position[2], temp2]);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[3] = temp2;
+                currentBlock.state = temp3;
+            }
+            break;
+        case 2: // Z block 
+            // currentBlock.position = [-9, -8, -20, -19];            
+            if (currentBlock.state === 0) {
+                    temp0 = currentBlock.position[3];
+                    temp1 = currentBlock.position[0];
+                    temp2 = currentBlock.position[2] + 2;
+                    temp3 = currentBlock.position[1] - 20;
+                    temp4 = 1;
+                } else {
+                    temp0 = currentBlock.position[1];
+                    temp1 = currentBlock.position[1] + 1;
+                    temp2 = currentBlock.position[0] - 1;
+                    temp3 = currentBlock.position[0];
+                    temp4 = 0;
+                }
+            var notColides = colisionBlock([temp0, temp1, temp2, temp3]);
+            if (notColides) {                
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+            break;
+        case 3: // S block
+            // currentBlock.position = [-10, -9, -19, -18];
+            if (currentBlock.state === 0) {
+                    temp0 = currentBlock.position[2] - 10;
+                    temp1 = currentBlock.position[2];
+                    temp2 = currentBlock.position[3];
+                    temp3 = currentBlock.position[3] + 10;
+                    temp4 = 1;
+                } else {
+                    temp0 = currentBlock.position[3] - 2;
+                    temp1 = currentBlock.position[1] + 10;
+                    temp2 = currentBlock.position[1];
+                    temp3 = currentBlock.position[2];
+                    temp4 = 0;
+                }
+            var notColides = colisionSBlock([temp0, temp1, temp2, temp3]);
+            if (notColides) {                
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+            break;
+        case 4: // T block
+            // currentBlock.position = [-10, -9, -8, -19];
+            temp0 = currentBlock.position[3];
+            temp1 = currentBlock.position[1];
+            temp3 = currentBlock.position[2];
+            switch (currentBlock.state) {
+                case 0:
+                    temp2 = currentBlock.position[1] + 10;                    
+                    temp4 = 1;
+                break;
+                case 1:
+                    temp2 = currentBlock.position[1] - 1;
+                    temp4 = 2;
+                break;
+                case 2:
+                    temp2 = currentBlock.position[1] - 10;
+                    temp4 = 3;
+                break;
+                case 3:
+                    temp2 = currentBlock.position[1] + 1;
+                    temp4 = 0;
+                break;
+            }
+
+            var notColides = colisionTBlock([temp0, temp1, temp2, temp3], temp4);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+
+            break;
+        case 5: // Square block
+            // currentBlock.position = [-10, -9, -20, -19];
+            // Do Nothing
+            break;
+        case 6: // Left L block
+            //currentBlock.position = [-10, -9, -8, -20];
+            temp1 = currentBlock.position[1];
+            switch (currentBlock.state) {                
+                case 0:
+                    temp0 = currentBlock.position[1] - 10;
+                    temp2 = currentBlock.position[1] + 10;
+                    temp3 = currentBlock.position[2] - 10;
+                    temp4 = 1;
+                break;
+                case 1:                
+                    temp0 = currentBlock.position[1] + 1;
+                    temp2 = currentBlock.position[1] - 1;
+                    temp3 = currentBlock.position[2] + 1;
+                    temp4 = 2;
+                break;
+                case 2:
+                    temp0 = currentBlock.position[1] + 10;
+                    temp2 = currentBlock.position[1] - 10;
+                    temp3 = currentBlock.position[2] + 10;
+                    temp4 = 3;
+                break;
+                case 3:
+                    temp0 = currentBlock.position[1] - 1;
+                    temp2 = currentBlock.position[1] + 1;
+                    temp3 = currentBlock.position[2] - 1;
+                    temp4 = 0;
+                break;
+            }
+
+            var notColides = colisionLLBlock([temp0, temp1, temp2, temp3], temp4);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+            break;
+        case 7: // Right L block            
+            // currentBlock.position = [-10, -9, -8, -18];
+            temp1 = currentBlock.position[1];
+            switch (currentBlock.state) {                
+                case 0:
+                    temp0 = currentBlock.position[1] - 10;
+                    temp2 = currentBlock.position[1] + 10;
+                    temp3 = currentBlock.position[2] + 10;
+                    temp4 = 1;
+                break;
+                case 1:                
+                    temp0 = currentBlock.position[1] + 1;
+                    temp2 = currentBlock.position[1] - 1;
+                    temp3 = currentBlock.position[2] - 1;
+                    temp4 = 2;
+                break;
+                case 2:
+                    temp0 = currentBlock.position[1] + 10;
+                    temp2 = currentBlock.position[1] - 10;
+                    temp3 = currentBlock.position[2] - 10;
+                    temp4 = 3;
+                break;
+                case 3:
+                    temp0 = currentBlock.position[1] - 1;
+                    temp2 = currentBlock.position[1] + 1;
+                    temp3 = currentBlock.position[2] + 1;
+                    temp4 = 0;
+                break;
+            }
+
+            var notColides = colisionRLBlock([temp0, temp1, temp2, temp3], temp4);
+            if (notColides) {
+                currentBlock.position[0] = temp0;
+                currentBlock.position[1] = temp1;
+                currentBlock.position[2] = temp2;
+                currentBlock.position[3] = temp3;
+                currentBlock.state = temp4;
+            }
+            break;
+    }
+};
+
+function colisionBlock(position) {
+    var notCollide = true;
+    var blockPosition;
+    for (i = 0; i < position.length; i++) {
+        blockPosition = position[i];
+        if (ocupiedBlocks[blockPosition] || blockPosition > 199) {
+            notCollide = false;
+        }
+    }
+    if (currentBlock.state === 1) { // Vertical
+        var max = Math.max.apply(null, position);
+        var min = Math.min.apply(null, position);
+        if (max % 10 < min % 10) {
+            notCollide = false;
+        }
+    }
+    return notCollide;
+};
+
+
+function colisionSBlock(position) {
+    var notCollide = true;
+    var blockPosition;
+    for (i = 0; i < position.length; i++) {
+        blockPosition = position[i];
+        if (ocupiedBlocks[blockPosition] || blockPosition > 199) {
+            notCollide = false;
+        }
+    }
+    if (currentBlock.state === 1) { // Vertical
+        if (position[0] % 10 > position[1] % 10) {
+            notCollide = false;
+        }
+    }
+    return notCollide;
+};
+
+function colisionTBlock(position, state) {
+    var notCollide = true;
+    var blockPosition;
+    for (i = 0; i < position.length; i++) {
+        blockPosition = position[i];
+        if (ocupiedBlocks[blockPosition] || blockPosition > 199) {
+            notCollide = false;
+        }
+    }
+    switch(state) {
+        case 0:
+            if(position[0] % 10 > position[1] % 10) {notCollide = false;}
+            if(position[2] % 10 < position[1] % 10) {notCollide = false;}
+        break;        
+        case 2:
+            if(position[0] % 10 < position[1] % 10) {notCollide = false;}
+            if(position[2] % 10 > position[1] % 10) {notCollide = false;}
+        break;
+    }    
+    return notCollide;
+};
+
+function colisionLLBlock(position, state) {
+    var notCollide = true;
+    var blockPosition;
+    for (i = 0; i < position.length; i++) {
+        blockPosition = position[i];
+        if (ocupiedBlocks[blockPosition] || blockPosition > 199) {
+            notCollide = false;
+        }
+    }
+    if(ocupiedBlocks[position[0] - 1] || ocupiedBlocks[position[0] + 1]
+                || ocupiedBlocks[position[2] + 1] || ocupiedBlocks[position[0] - 1]) {notCollide = false;}
+    switch(state) {
+        case 0:
+            if(position[0] % 10 > position[2] % 10) {notCollide = false;}
+        break;        
+        case 2:
+            if(position[0] % 10 < position[2] % 10) {notCollide = false;}
+        break;
+    }
+    return notCollide;
+};
+
+function colisionRLBlock(position, state) {
+    var notCollide = true;
+    var blockPosition;
+    for (i = 0; i < position.length; i++) {
+        blockPosition = position[i];
+        if (ocupiedBlocks[blockPosition] || blockPosition > 199) {
+            notCollide = false;
+        }
+    }
+    if(ocupiedBlocks[position[0] - 1] || ocupiedBlocks[position[0] + 1]
+                || ocupiedBlocks[position[2] + 1] || ocupiedBlocks[position[0] - 1]) {notCollide = false;}
+    switch(state) {
+        case 0:
+            if(position[0] % 10 > position[2] % 10) {notCollide = false;}            
+        break;        
+        case 2:
+            if(position[0] % 10 < position[2] % 10) {notCollide = false;}            
+        break;
+    }
+    return notCollide;
+};
+
+function checkLine() {    
+    var completedLines = new Array();
+    count = 0;
+    for (i = 0; i < currentBlock.position.length; i++) {
+        var line = Math.floor(currentBlock.position[i] / 10);
+        var lineCompleted = true;
+        for (j = 0; j < 10; j++) {
+            if(!ocupiedBlocks[line * 10 + j]) {
+                lineCompleted = false;
+            }
+        }
+        if (lineCompleted && completedLines.indexOf(line * 10) == -1) {completedLines[count++] = line * 10;}
+    }
+
+    completedLines.sort(function(a, b){return a-b});    
+
+    for (i = 0; i < completedLines.length; i++) {
+        for (k = completedLines[i] + 9; k > 9; k--) {
+            ocupiedBlocks[k] = ocupiedBlocks[k - 10];
+        }
+        for(j = 0; j < 10; j++) {
+            ocupiedBlocks[j] = false;
+        }
+    }
 };
