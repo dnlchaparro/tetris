@@ -1,20 +1,35 @@
 var ctx = null;
-var ended = false;
-var onPause = false;
-var notStarted = true;
+var ended;
+var onPause;
+var notStarted;
 var blockSize = 0;
 var ctx = null;
 var height = 0;
-var speed = 500;
+var initialSpeed = 500;
+var speed = initialSpeed;
 var level = 1;
 var score = 0;
 var lines = 0;
-var linesToNext = 10;
 var difficulty = 0;
-var canRotate = true;
+var canMove;
 var ocupiedBlocks = new Array(200);
 var timerID;
+var timerLosing;
 var currentBlock = new nBlock();
+var lastMoveFloor = false;
+var maxLevel = 20;
+
+var themeSong = document.createElement('audio');
+if (themeSong.canPlayType('audio/mpeg')) {
+    themeSong.setAttribute('src', 'music/russia.mp3');
+}
+if (themeSong.canPlayType('audio/ogg')) {
+    themeSong.setAttribute('src', 'music/russia.ogg');
+}
+themeSong.addEventListener('ended', function() {
+    this.currentTime = 0;
+    this.play();
+}, false);
 
 
 function createCanvas() {
@@ -34,9 +49,16 @@ function createCanvas() {
 };
 
 function startGame() {
+    clearInterval(timerLosing);
     currentBlock.blockType = 0;
     currentBlock.position = 0;
     currentBlock.finished = true;
+    ended = false;
+    onPause = false;
+    notStarted = true;
+    linesToNext = 20;
+    canMove = true;
+
     drawInstructions();
     drawBoard();
     drawScore();
@@ -92,7 +114,6 @@ function drawBoard() {
     ctx.strokeRect(.75 * height, 0, height / 2, height - 1);
 };
 
-
 function drawCurrentBlock() {
     if (currentBlock.position != 0) {
         for (i = 0; i < currentBlock.position.length; i++) {
@@ -123,7 +144,7 @@ function drawScore() {
     ctx.font = "bold " + size + font;
     var lvl = "Level: " + level;
     ctx.fillText(lvl, left, top);
-    var lns = "Lines: " + score;
+    var lns = "Lines: " + lines;
     ctx.fillText(lns, left, top + 3 * size);
     var scr = "Score: " + score;
     ctx.fillText(scr, left, top + 6 * size);
@@ -162,73 +183,103 @@ function check(e) {
         if (notStarted) {
             notStarted = false;
             onPause = true;
+            themeSong.play();
+            for (var i = 0; i < 200; i++) {
+                ocupiedBlocks[i] = false;
+            }
         }
         if (onPause) {
             timerID = setInterval("moveDown()", speed);
+            themeSong.play();
         } else {
             clearInterval(timerID);
+            themeSong.pause();
         }
         onPause = !onPause;
     }
-    if (!onPause) {        
+    if (!onPause) {
         switch (e.keyCode) {
             case 32: // Fast drop
-                moveDown();
+                if (!notStarted) {
+                    moveDown();
+                }
                 break;
-            case 37: // Move left                
-                moveLeft();                
+            case 37: // Move left
+                moveLeft();
                 break;
             case 38: // Rotate Left
                 for (i = 0; i < currentBlock.position.length; i++) {
-                        if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
-                            canRotate = false;
-                        }
+                    if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
+                        canMove = false;
                     }
-                if (canRotate) {
-                   rotateLeft();
-                    }                                   
+                }
+                if (canMove) {
+                    rotateLeft();
+                }
                 break;
             case 39: // Move right
                 moveRight();
                 break;
             case 40: // Rotate right            
                 for (i = 0; i < currentBlock.position.length; i++) {
-                        if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
-                            canRotate = false;
-                        }
+                    if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
+                        canMove = false;
                     }
-                if (canRotate) { 
+                }
+                if (canMove) {
                     rotateRight();
-                    }
+                }
                 break;
         }
     }
 };
 
 function moveDown() {
-    if (currentBlock.finished) {        
-        if (currentBlock.position !== 0) {
-            for (i = 0; i < currentBlock.position.length; i++) {
-                ocupiedBlocks[currentBlock.position[i]] = true;
+    if (currentBlock.finished) {
+        gameOver(); // Check if player lost the game
+        if (!notStarted) {
+            if (currentBlock.position !== 0) {
+                for (i = 0; i < currentBlock.position.length; i++) {
+                    ocupiedBlocks[currentBlock.position[i]] = true;
+                }
             }
+            checkLine();
+            var nextBlock = Math.floor((Math.random() * 7) + 1);
+            currentBlock.blockType = nextBlock;
+            currentBlock.finished = false;
+            currentBlock.state = 0;
+            currentBlock.newBlock();
         }
-        checkLine();
-        var nextBlock = Math.floor((Math.random() * 7) + 1);
-        currentBlock.blockType = nextBlock;
-        //currentBlock.blockType = 5;
-        currentBlock.finished = false;
-        currentBlock.state = 0;
-        currentBlock.newBlock();
     } else {
         currentBlock.down();
         drawCurrentBlock();
     }
-    drawBoard();
+    if (!notStarted) {
+        drawBoard();
+        drawScore();
+    }
 };
-
 
 function moveLeft() {
     var movePossible = true;
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (lastMoveFloor && !ocupiedBlocks[currentBlock.position[i] + 10]) {
+            movePossible = false;
+        }
+    }
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (lastMoveFloor) {
+            if (currentBlock.position[i] >= 190 || !ocupiedBlocks[currentBlock.position[i] + 10]) {
+                movePossible = false;
+            }
+        }
+        lastMoveFloor = false;
+    }
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
+            lastMoveFloor = true;
+        }
+    }
     for (i = 0; i < currentBlock.position.length; i++) {
         if (currentBlock.position[i] % 10 === 0) {
             movePossible = false;
@@ -244,9 +295,26 @@ function moveLeft() {
     }
 };
 
-
 function moveRight() {
     var movePossible = true;
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (lastMoveFloor && !ocupiedBlocks[currentBlock.position[i] + 10]) {
+            movePossible = false;
+        }
+    }
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (lastMoveFloor) {
+            if (currentBlock.position[i] >= 190 || !ocupiedBlocks[currentBlock.position[i] + 10]) {
+                movePossible = false;
+            }
+        }
+        lastMoveFloor = false;
+    }
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (currentBlock.position[i] >= 190 || ocupiedBlocks[currentBlock.position[i] + 10]) {
+            lastMoveFloor = true;
+        }
+    }
     for (i = 0; i < currentBlock.position.length; i++) {
         if (currentBlock.position[i] % 10 === 9) {
             movePossible = false;
@@ -291,74 +359,69 @@ function nBlock() {
     this.newBlock = function() {
         this.finished = false;
         this.state = 0;
-        canRotate = true;
+        canMove = true;
         switch (this.blockType) {
             case 0: // l block            
                 this.position = 0;
                 break;
             case 1: // l block
-                this.position = [-10, -9, -8, -7];
+                this.position = [-7, -6, -5, -4];
                 break;
             case 2: // Z block 
-                this.position = [-9, -8, -20, -19];
+                this.position = [-7, -6, -18, -17];
                 break;
             case 3: // S block
-                this.position = [-10, -9, -19, -18];
+                this.position = [-7, -6, -16, -15];
                 break;
             case 4: // T block
-                this.position = [-10, -9, -8, -19];
+                this.position = [-7, -6, -5, -16];
                 break;
             case 5: // Square block
-                this.position = [-10, -9, -20, -19];
+                this.position = [-6, -5, -16, -15];
                 break;
             case 6: // Left L block
-                this.position = [-10, -9, -8, -20];
+                this.position = [-6, -5, -4, -16];
                 break;
             case 7: // Right L block            
-                this.position = [-10, -9, -8, -18];
+                this.position = [-6, -5, -4, -14];
                 break;
         };
     };
 };
 
-rotateLeft = function() {
+function rotateLeft() {
     switch (currentBlock.blockType) {
         case 1: // l block
-            //currentBlock.position = [-10, -9, -8, -7];
             rotateRight();
             break;
         case 2: // Z block 
-            //currentBlock.position = [-9, -8, -20, -19];
             rotateRight();
             break;
         case 3: // S block
-            // currentBlock.position = [-10, -9, -19, -18];
             rotateRight();
             break;
         case 4: // T block
-            // currentBlock.position = [-10, -9, -8, -19];            
             temp1 = currentBlock.position[1];
             temp2 = currentBlock.position[3];
             temp3 = currentBlock.position[0];
             switch (currentBlock.state) {
-                case 0:                
+                case 0:
                     temp0 = currentBlock.position[1] + 10;
                     temp4 = 3;
-                break;
+                    break;
                 case 1:
                     temp0 = currentBlock.position[1] - 1;
                     temp4 = 0;
-                break;
+                    break;
                 case 2:
                     temp0 = currentBlock.position[1] - 10;
                     temp4 = 1;
-                break;
+                    break;
                 case 3:
                     temp0 = currentBlock.position[1] + 1;
                     temp4 = 2;
-                break;
-            }                        
-
+                    break;
+            }
             var notColides = colisionTBlock([temp0, temp1, temp2, temp3], temp4);
             if (notColides) {
                 currentBlock.position[0] = temp0;
@@ -367,42 +430,38 @@ rotateLeft = function() {
                 currentBlock.position[3] = temp3;
                 currentBlock.state = temp4;
             }
-
             break;
         case 5: // Square block
-            // currentBlock.position = [-10, -9, -20, -19];
             // Do Notinhg
             break;
         case 6: // Left L block
-            // currentBlock.position = [-10, -9, -8, -20];
             temp1 = currentBlock.position[1];
-            switch (currentBlock.state) {                
+            switch (currentBlock.state) {
                 case 0:
                     temp0 = currentBlock.position[1] + 10;
                     temp2 = currentBlock.position[1] - 10;
                     temp3 = currentBlock.position[0] + 10;
                     temp4 = 3;
-                break;
-                case 1:                
+                    break;
+                case 1:
                     temp0 = currentBlock.position[1] - 1;
                     temp2 = currentBlock.position[1] + 1;
                     temp3 = currentBlock.position[0] - 1;
                     temp4 = 0;
-                break;
+                    break;
                 case 2:
                     temp0 = currentBlock.position[1] - 10;
                     temp2 = currentBlock.position[1] + 10;
                     temp3 = currentBlock.position[0] - 10;
                     temp4 = 1;
-                break;
+                    break;
                 case 3:
                     temp0 = currentBlock.position[1] + 1;
                     temp2 = currentBlock.position[1] - 1;
                     temp3 = currentBlock.position[0] + 1;
                     temp4 = 2;
-                break;
+                    break;
             }
-
             var notColides = colisionLLBlock([temp0, temp1, temp2, temp3], temp4);
             if (notColides) {
                 currentBlock.position[0] = temp0;
@@ -413,35 +472,33 @@ rotateLeft = function() {
             }
             break;
         case 7: // Right L block            
-            // currentBlock.position = [-10, -9, -8, -18];
             temp1 = currentBlock.position[1];
-            switch (currentBlock.state) {                
+            switch (currentBlock.state) {
                 case 0:
                     temp0 = currentBlock.position[1] + 10;
                     temp2 = currentBlock.position[1] - 10;
                     temp3 = currentBlock.position[0] - 10;
                     temp4 = 3;
-                break;
-                case 1:                
+                    break;
+                case 1:
                     temp0 = currentBlock.position[1] - 1;
                     temp2 = currentBlock.position[1] + 1;
                     temp3 = currentBlock.position[0] + 1;
                     temp4 = 0;
-                break;
+                    break;
                 case 2:
                     temp0 = currentBlock.position[1] - 10;
                     temp2 = currentBlock.position[1] + 10;
                     temp3 = currentBlock.position[0] + 10;
                     temp4 = 1;
-                break;
+                    break;
                 case 3:
                     temp0 = currentBlock.position[1] + 1;
                     temp2 = currentBlock.position[1] - 1;
                     temp3 = currentBlock.position[0] - 1;
                     temp4 = 2;
-                break;
+                    break;
             }
-
             var notColides = colisionRLBlock([temp0, temp1, temp2, temp3], temp4);
             if (notColides) {
                 currentBlock.position[0] = temp0;
@@ -454,10 +511,9 @@ rotateLeft = function() {
     }
 };
 
-rotateRight = function() {
+function rotateRight() {
     switch (currentBlock.blockType) {
         case 1: // l block
-            //currentBlock.position = [-10, -9, -8, -7];            
             if (currentBlock.state === 0) {
                 temp0 = currentBlock.position[2] - 20;
                 temp1 = currentBlock.position[2] - 10;
@@ -478,22 +534,21 @@ rotateRight = function() {
             }
             break;
         case 2: // Z block 
-            // currentBlock.position = [-9, -8, -20, -19];            
             if (currentBlock.state === 0) {
-                    temp0 = currentBlock.position[3];
-                    temp1 = currentBlock.position[0];
-                    temp2 = currentBlock.position[2] + 2;
-                    temp3 = currentBlock.position[1] - 20;
-                    temp4 = 1;
-                } else {
-                    temp0 = currentBlock.position[1];
-                    temp1 = currentBlock.position[1] + 1;
-                    temp2 = currentBlock.position[0] - 1;
-                    temp3 = currentBlock.position[0];
-                    temp4 = 0;
-                }
+                temp0 = currentBlock.position[3];
+                temp1 = currentBlock.position[0];
+                temp2 = currentBlock.position[2] + 2;
+                temp3 = currentBlock.position[1] - 20;
+                temp4 = 1;
+            } else {
+                temp0 = currentBlock.position[1];
+                temp1 = currentBlock.position[1] + 1;
+                temp2 = currentBlock.position[0] - 1;
+                temp3 = currentBlock.position[0];
+                temp4 = 0;
+            }
             var notColides = colisionBlock([temp0, temp1, temp2, temp3]);
-            if (notColides) {                
+            if (notColides) {
                 currentBlock.position[0] = temp0;
                 currentBlock.position[1] = temp1;
                 currentBlock.position[2] = temp2;
@@ -502,22 +557,21 @@ rotateRight = function() {
             }
             break;
         case 3: // S block
-            // currentBlock.position = [-10, -9, -19, -18];
             if (currentBlock.state === 0) {
-                    temp0 = currentBlock.position[2] - 10;
-                    temp1 = currentBlock.position[2];
-                    temp2 = currentBlock.position[3];
-                    temp3 = currentBlock.position[3] + 10;
-                    temp4 = 1;
-                } else {
-                    temp0 = currentBlock.position[3] - 2;
-                    temp1 = currentBlock.position[1] + 10;
-                    temp2 = currentBlock.position[1];
-                    temp3 = currentBlock.position[2];
-                    temp4 = 0;
-                }
+                temp0 = currentBlock.position[2] - 10;
+                temp1 = currentBlock.position[2];
+                temp2 = currentBlock.position[3];
+                temp3 = currentBlock.position[3] + 10;
+                temp4 = 1;
+            } else {
+                temp0 = currentBlock.position[3] - 2;
+                temp1 = currentBlock.position[1] + 10;
+                temp2 = currentBlock.position[1];
+                temp3 = currentBlock.position[2];
+                temp4 = 0;
+            }
             var notColides = colisionSBlock([temp0, temp1, temp2, temp3]);
-            if (notColides) {                
+            if (notColides) {
                 currentBlock.position[0] = temp0;
                 currentBlock.position[1] = temp1;
                 currentBlock.position[2] = temp2;
@@ -526,29 +580,27 @@ rotateRight = function() {
             }
             break;
         case 4: // T block
-            // currentBlock.position = [-10, -9, -8, -19];
             temp0 = currentBlock.position[3];
             temp1 = currentBlock.position[1];
             temp3 = currentBlock.position[2];
             switch (currentBlock.state) {
                 case 0:
-                    temp2 = currentBlock.position[1] + 10;                    
+                    temp2 = currentBlock.position[1] + 10;
                     temp4 = 1;
-                break;
+                    break;
                 case 1:
                     temp2 = currentBlock.position[1] - 1;
                     temp4 = 2;
-                break;
+                    break;
                 case 2:
                     temp2 = currentBlock.position[1] - 10;
                     temp4 = 3;
-                break;
+                    break;
                 case 3:
                     temp2 = currentBlock.position[1] + 1;
                     temp4 = 0;
-                break;
+                    break;
             }
-
             var notColides = colisionTBlock([temp0, temp1, temp2, temp3], temp4);
             if (notColides) {
                 currentBlock.position[0] = temp0;
@@ -557,42 +609,38 @@ rotateRight = function() {
                 currentBlock.position[3] = temp3;
                 currentBlock.state = temp4;
             }
-
             break;
         case 5: // Square block
-            // currentBlock.position = [-10, -9, -20, -19];
             // Do Nothing
             break;
         case 6: // Left L block
-            //currentBlock.position = [-10, -9, -8, -20];
             temp1 = currentBlock.position[1];
-            switch (currentBlock.state) {                
+            switch (currentBlock.state) {
                 case 0:
                     temp0 = currentBlock.position[1] - 10;
                     temp2 = currentBlock.position[1] + 10;
                     temp3 = currentBlock.position[2] - 10;
                     temp4 = 1;
-                break;
-                case 1:                
+                    break;
+                case 1:
                     temp0 = currentBlock.position[1] + 1;
                     temp2 = currentBlock.position[1] - 1;
                     temp3 = currentBlock.position[2] + 1;
                     temp4 = 2;
-                break;
+                    break;
                 case 2:
                     temp0 = currentBlock.position[1] + 10;
                     temp2 = currentBlock.position[1] - 10;
                     temp3 = currentBlock.position[2] + 10;
                     temp4 = 3;
-                break;
+                    break;
                 case 3:
                     temp0 = currentBlock.position[1] - 1;
                     temp2 = currentBlock.position[1] + 1;
                     temp3 = currentBlock.position[2] - 1;
                     temp4 = 0;
-                break;
+                    break;
             }
-
             var notColides = colisionLLBlock([temp0, temp1, temp2, temp3], temp4);
             if (notColides) {
                 currentBlock.position[0] = temp0;
@@ -603,35 +651,33 @@ rotateRight = function() {
             }
             break;
         case 7: // Right L block            
-            // currentBlock.position = [-10, -9, -8, -18];
             temp1 = currentBlock.position[1];
-            switch (currentBlock.state) {                
+            switch (currentBlock.state) {
                 case 0:
                     temp0 = currentBlock.position[1] - 10;
                     temp2 = currentBlock.position[1] + 10;
                     temp3 = currentBlock.position[2] + 10;
                     temp4 = 1;
-                break;
-                case 1:                
+                    break;
+                case 1:
                     temp0 = currentBlock.position[1] + 1;
                     temp2 = currentBlock.position[1] - 1;
                     temp3 = currentBlock.position[2] - 1;
                     temp4 = 2;
-                break;
+                    break;
                 case 2:
                     temp0 = currentBlock.position[1] + 10;
                     temp2 = currentBlock.position[1] - 10;
                     temp3 = currentBlock.position[2] - 10;
                     temp4 = 3;
-                break;
+                    break;
                 case 3:
                     temp0 = currentBlock.position[1] - 1;
                     temp2 = currentBlock.position[1] + 1;
                     temp3 = currentBlock.position[2] + 1;
                     temp4 = 0;
-                break;
+                    break;
             }
-
             var notColides = colisionRLBlock([temp0, temp1, temp2, temp3], temp4);
             if (notColides) {
                 currentBlock.position[0] = temp0;
@@ -663,7 +709,6 @@ function colisionBlock(position) {
     return notCollide;
 };
 
-
 function colisionSBlock(position) {
     var notCollide = true;
     var blockPosition;
@@ -690,16 +735,24 @@ function colisionTBlock(position, state) {
             notCollide = false;
         }
     }
-    switch(state) {
+    switch (state) {
         case 0:
-            if(position[0] % 10 > position[1] % 10) {notCollide = false;}
-            if(position[2] % 10 < position[1] % 10) {notCollide = false;}
-        break;        
+            if (position[0] % 10 > position[1] % 10) {
+                notCollide = false;
+            }
+            if (position[2] % 10 < position[1] % 10) {
+                notCollide = false;
+            }
+            break;
         case 2:
-            if(position[0] % 10 < position[1] % 10) {notCollide = false;}
-            if(position[2] % 10 > position[1] % 10) {notCollide = false;}
-        break;
-    }    
+            if (position[0] % 10 < position[1] % 10) {
+                notCollide = false;
+            }
+            if (position[2] % 10 > position[1] % 10) {
+                notCollide = false;
+            }
+            break;
+    }
     return notCollide;
 };
 
@@ -712,15 +765,20 @@ function colisionLLBlock(position, state) {
             notCollide = false;
         }
     }
-    if(ocupiedBlocks[position[0] - 1] || ocupiedBlocks[position[0] + 1]
-                || ocupiedBlocks[position[2] + 1] || ocupiedBlocks[position[0] - 1]) {notCollide = false;}
-    switch(state) {
+    if (ocupiedBlocks[position[0] - 1] || ocupiedBlocks[position[0] + 1] || ocupiedBlocks[position[2] + 1] || ocupiedBlocks[position[0] - 1]) {
+        notCollide = false;
+    }
+    switch (state) {
         case 0:
-            if(position[0] % 10 > position[2] % 10) {notCollide = false;}
-        break;        
+            if (position[0] % 10 > position[2] % 10) {
+                notCollide = false;
+            }
+            break;
         case 2:
-            if(position[0] % 10 < position[2] % 10) {notCollide = false;}
-        break;
+            if (position[0] % 10 < position[2] % 10) {
+                notCollide = false;
+            }
+            break;
     }
     return notCollide;
 };
@@ -734,41 +792,138 @@ function colisionRLBlock(position, state) {
             notCollide = false;
         }
     }
-    if(ocupiedBlocks[position[0] - 1] || ocupiedBlocks[position[0] + 1]
-                || ocupiedBlocks[position[2] + 1] || ocupiedBlocks[position[0] - 1]) {notCollide = false;}
-    switch(state) {
+    if (ocupiedBlocks[position[0] - 1] || ocupiedBlocks[position[0] + 1] || ocupiedBlocks[position[2] + 1] || ocupiedBlocks[position[0] - 1]) {
+        notCollide = false;
+    }
+    switch (state) {
         case 0:
-            if(position[0] % 10 > position[2] % 10) {notCollide = false;}            
-        break;        
+            if (position[0] % 10 > position[2] % 10) {
+                notCollide = false;
+            }
+            break;
         case 2:
-            if(position[0] % 10 < position[2] % 10) {notCollide = false;}            
-        break;
+            if (position[0] % 10 < position[2] % 10) {
+                notCollide = false;
+            }
+            break;
     }
     return notCollide;
 };
 
-function checkLine() {    
+function checkLine() {
     var completedLines = new Array();
     count = 0;
     for (i = 0; i < currentBlock.position.length; i++) {
         var line = Math.floor(currentBlock.position[i] / 10);
         var lineCompleted = true;
         for (j = 0; j < 10; j++) {
-            if(!ocupiedBlocks[line * 10 + j]) {
+            if (!ocupiedBlocks[line * 10 + j]) {
                 lineCompleted = false;
             }
         }
-        if (lineCompleted && completedLines.indexOf(line * 10) == -1) {completedLines[count++] = line * 10;}
+        if (lineCompleted && completedLines.indexOf(line * 10) == -1) {
+            completedLines[count++] = line * 10;
+        }
     }
 
-    completedLines.sort(function(a, b){return a-b});    
+    linesToNext -= completedLines.length;
+    lines += completedLines.length;
+    switch (completedLines.length) {
+        case 1:
+            score += level * 4;
+            break;
+        case 2:
+            score += level * 10;
+            break;
+        case 3:
+            score += level * 20;
+            break;
+        case 4:
+            score += level * 50;
+            break;
+    }
+
+    completedLines.sort(function(a, b) {
+        return a - b
+    });
 
     for (i = 0; i < completedLines.length; i++) {
         for (k = completedLines[i] + 9; k > 9; k--) {
             ocupiedBlocks[k] = ocupiedBlocks[k - 10];
         }
-        for(j = 0; j < 10; j++) {
+        for (j = 0; j < 10; j++) {
             ocupiedBlocks[j] = false;
         }
+    }
+
+    if (linesToNext <= 0) { // Level completed
+        clearInterval(timerID);
+        notStarted = true;
+        onPause = true;
+        startGame();
+        speed *= .95;
+        level++;
+        if (level > maxLevel) {
+            themeSong.pause();
+            themeSong.currentTime = 0;
+            clearInterval(timerID);
+            notStarted = true;
+            onPause = true;
+            currentBlock.position = 0;
+            speed = initialSpeed;
+            startGame();
+            endGame(["You win!", "to play again"]);
+            scoreResult();
+            lines = 0;
+            score = 0;
+            level = 1;
+        } else {
+            endGame(["Level passed!", ""]);
+        }
+    }
+};
+
+function gameOver() {
+    lost = false;
+    for (i = 0; i < currentBlock.position.length; i++) {
+        if (currentBlock.position[i] < 0) {
+            lost = true;
+        }
+    }
+    if (lost) {
+        clearInterval(timerID);
+        notStarted = true;
+        onPause = true;
+        startGame();
+        currentBlock.position = 0;
+        lines = 0;
+        level = 1;
+        speed = initialSpeed;
+        themeSong.pause();
+        themeSong.currentTime = 0;
+        for (i = 199; i >= 0; i--) {
+            ocupiedBlocks[i] = true;
+        }
+        drawBoard();
+        endGame(["You lose!", "to play again"]);
+        score = 0;
+    }
+};
+
+function endGame(message) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(.75 * height, height / 3, height / 2, height / 5);
+    var font = "px Verdana";
+    var size = height / 18;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = size + font;
+    ctx.fillText(message[0], .75 * height + size / 2, height / 3 + size + 4);
+    ctx.fillText("Press Enter", .75 * height + size / 2, height / 3 + 2 * size + 5);
+    ctx.fillText(message[1], .75 * height + size / 2, height / 3 + 3 * size + 5);
+    if (level > maxLevel || lines === 0) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(.75 * height, height / 3 + height / 5, height / 2, height / 10);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillText("Score: " + score, .75 * height + size / 2, height / 3 + 4 * size + 15);
     }
 };
